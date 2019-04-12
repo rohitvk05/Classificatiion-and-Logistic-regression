@@ -1,0 +1,253 @@
+---
+title: "Assignment 3"
+author: "Rohit K"
+date: "February 22, 2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ROCR)
+library(caret)
+library(e1071)
+setwd("C:/Users/Rohit/Documents/Spring Sem 2/Data mining/Assignment 3")
+vote.pref <- read.csv("Individual Assignment 2 VoterPref.csv")
+#1
+library(plyr)
+##revalue(dfk$PREFERENCE,c("For"="Failure","Against"="Success"))
+vote.pref$PREFERENCE<-factor(vote.pref$PREFERENCE,levels=c("For","Against"))
+set.seed(71923)
+splitrule<-sample(nrow(vote.pref),0.7*nrow(vote.pref))
+df_train<-data.frame(vote.pref[splitrule,])
+df_test<-data.frame(vote.pref[-splitrule,])
+str(df_train)
+
+#2
+df_train$PREFERENCE<-revalue(df_train$PREFERENCE,c("Against"="1","For"="0"))
+df_train$PREFERENCE<-as.numeric(as.character(df_train$PREFERENCE))
+df_test$PREFERENCE<-revalue(df_test$PREFERENCE,c("Against"="1","For"="0"))
+df_test$PREFERENCE<-as.numeric(as.character(df_test$PREFERENCE))
+
+fit1<-glm(df_train$PREFERENCE~.,data=df_train,family = "binomial")
+cutoff = 0.5
+pred_train<-ifelse(predict(fit1,type = "response") > cutoff,1,0)
+pred_t<-predict(fit1,type = "response")
+pred_1<- predict(fit1, newdata = df_test,type="response")
+pred_test<-ifelse(pred_1>cutoff,1,0)
+
+#2a
+confusion_train<-table(df_train$PREFERENCE,pred_train)
+rownames(confusion_train)<-c("For","Against")
+colnames(confusion_train)<-c("For","Against")
+confusion_train
+
+confusion_test<-table(df_test$PREFERENCE,pred_test)
+rownames(confusion_test)<-c("For","Against")
+colnames(confusion_test)<-c("For","Against")
+confusion_test
+```
+```{r}
+#2b
+(sensitivity_train = sum(pred_train == "1" & df_train$PREFERENCE == "1")/sum(df_train$PREFERENCE=="1"))
+(specificity_train = sum(pred_train == "0" & df_train$PREFERENCE == "0")/sum(df_train$PREFERENCE == "0"))
+(accuracy_train = sum(df_train$PREFERENCE == pred_train)/nrow(df_train))
+(error_rate_train = 1 - accuracy_train)
+(ppv_train = sum(pred_train == "1" & df_train$PREFERENCE == "1")/sum(pred_train == "1"))
+(npv_train = sum(pred_train == "0" & df_train$PREFERENCE == "0")/sum(pred_train == "0"))
+
+(sensitivity_test = sum(pred_test == "1" & df_test$PREFERENCE == "1")/sum(df_test$PREFERENCE=="1"))
+(specificity_test = sum(pred_test == "0" & df_test$PREFERENCE == "0")/sum(df_test$PREFERENCE == "0"))
+(accuracy_test = sum(df_test$PREFERENCE == pred_test)/nrow(df_test))
+(error_rate_test = 1 - accuracy_test)
+(ppv_test = sum(pred_test == "1" & df_test$PREFERENCE == "1")/sum(pred_test == "1"))
+(npv_test = sum(pred_test == "0" & df_test$PREFERENCE == "0")/sum(pred_test == "0"))
+```
+```{r}
+#2c
+library(ROCR)
+data("ROCR.simple")
+cutoff <- seq(0, 1, length = 100)
+fpr <- numeric(100)
+tpr <- numeric(100)
+
+## We'll collect it in a data frame.  
+roc.table_train <- data.frame(Cutoff = cutoff, FPR = fpr,TPR = tpr)
+roc.table_test <- data.frame(Cutoff = cutoff, FPR = fpr,TPR = tpr)
+Actual_train<-df_train$PREFERENCE
+## TPR is the Sensitivity; FPR is 1-Specificity
+for (i in 1:100) {
+  roc.table_train$FPR[i] <- sum(pred_t > cutoff[i] & Actual_train == "0")/sum(Actual_train == "0")
+  roc.table_train$TPR[i] <- sum(pred_t > cutoff[i] & Actual_train == "1")/sum(Actual_train == "1")
+}
+plot(TPR ~ FPR, data = roc.table_train, type= "o",xlab="1-Specificity",ylab="Sensitivity",col="blue",lty=2)
+abline(a = 0, b = 1, lty = 2,col="red")
+##
+Actual_test <- df_test$PREFERENCE
+#
+for (i in 1:100) {
+  roc.table_test$FPR[i] <- sum(pred_1 > cutoff[i] & Actual_test == "0")/sum(Actual_test == "0")
+  roc.table_test$TPR[i] <- sum(pred_1 > cutoff[i] & Actual_test == "1")/sum(Actual_test == "1")
+}
+
+##
+## The following line adds the test ROC in green 
+lines(TPR~FPR,data = roc.table_test, type="o",col="green",lty=2)
+legend(0.7,0.7,c("Training","Test"),lty= c(1,1),lwd = c(1.5,1.5),col = c("blue","green"))
+
+#2d
+pred1<-prediction(pred_t,df_train$PREFERENCE)
+perf_train <- performance( pred1, "acc")
+plot( perf_train , show.spread.at=seq(0, 1, by=0.1), col="red",main = "Training data set")
+
+pred2<-prediction(pred_1,df_test$PREFERENCE)
+perf_test <- performance( pred2, "acc")
+plot( perf_test , show.spread.at=seq(0, 1, by=0.1),col="blue",main = "Test data set")
+
+#2e
+#For training 
+best_acc_ind<-which.max(perf_train@"y.values"[[1]])
+(best1<-paste("Max accuracy = ",perf_train@"y.values"[[1]][best_acc_ind],"at cutoff = ",round(perf_train@"x.values"[[1]][best_acc_ind],4)))
+
+# cutoff_t<-seq(0,1,length=100)
+# acc_train<-seq(0,0,length=100)
+# for(i in 1:100) {
+#   pred_train_class<-ifelse(pred_t>cutoff_t[i],1,0)
+#   acc_train[i]<-sum(df_train$PREFERENCE == pred_train_class)/nrow(df_train)
+# }
+# dataframe<-data.frame(acc_train,cutoff_t)
+# max_acc_train<-dataframe[which.max(acc_train),]
+# (best_acc<-paste("Cutoff = ",round(max_acc_train[,"cutoff_t"],8),"and Accuracy = ",round(max_acc_train[,"acc_train"],4)))
+# new<-round(max_acc_train[,"cutoff_t"],8)
+# plot(acc_train~cutoff_t,data=dataframe)
+
+#For test
+best_acc_ind1<-which.max(perf_test@"y.values"[[1]])
+(best2<-paste("Max accuracy = ",perf_test@"y.values"[[1]][best_acc_ind1],"at cutoff = ",round(perf_test@"x.values"[[1]][best_acc_ind1],4)))
+
+# acc_test<-seq(0,0,length=100)
+# for(i in 1:100) {
+#   pred_test_class<-ifelse(pred_1>cutoff_t[i],1,0)
+#   acc_test[i]<-sum(df_test$PREFERENCE == pred_test_class)/nrow(df_test)
+# }
+# dataframe2<-data.frame(acc_test,cutoff_t)
+# max_acc_test<-dataframe2[which.max(acc_test),]
+# (best_acc1<-paste("Cutoff = ",round(max_acc_test[,"cutoff_t"],4),"and Accuracy = ",round(max_acc_test[,"acc_test"],4)))
+# plot(acc_test~cutoff_t,data=dataframe2)
+
+#2f
+predicttest<-pred_1
+predtest<-ifelse(predicttest>0.4204,1,0)
+predtest<-factor(predtest,levels=c(0,1))
+acc_test1<-((sum(predtest == 0 & df_test$PREFERENCE == 0)) + (sum(predtest == 1 & df_test$PREFERENCE == 1)))/(sum(df_test$PREFERENCE == 1)+sum(df_test$PREFERENCE == 0))
+acc_test1
+#3
+library(rpart)
+library(xtable)
+cost.matrix<-matrix(c(0,4,1,0),byrow = TRUE,nrow=2)
+rownames(cost.matrix)<-colnames(cost.matrix)<-c("For","Against")
+cost.matrix
+
+#3a
+cost_train<-data.frame(Cutoff = rep(0,100),Cost = rep(0,100))
+predict_train<-predict(fit1,newdata = df_train,type="response")
+for( i in 1:100 ){
+  predtrain<-ifelse(predict_train > i/100,"Against","For")
+  predtrain<-factor(predtrain,levels=c("For","Against"))
+  predtrain
+  confusionMatrix_train<-table(df_train$PREFERENCE,predtrain)
+  cost_train[i,]<-c(i/100,sum(confusionMatrix_train[1,2]*cost.matrix[c(1),c(2)],confusionMatrix_train[2,1]*cost.matrix[c(2),c(1)]))
+}
+
+min_cost_index<-which.min(cost_train$Cost)
+(best_acc<-paste("Cutoff = ",cost_train[min_cost_index,"Cutoff"],"and Cost = ",round(cost_train[min_cost_index,"Cost"])))
+
+
+#3b
+cost_test<-data.frame(Cutoff = rep(0,100),Cost = rep(0,100))
+predict_test<-predict(fit1,newdata = df_test,type="response")
+for( i in 1:100 ){
+  predtest<-ifelse(predict_test > i/100,"Against","For")
+  predtest<-factor(predtest,levels=c("For","Against"))
+  predtrain
+  confusionMatrix_test<-table(df_test$PREFERENCE,predtest)
+  cost_test[i,]<-c(i/100,sum(confusionMatrix_test[1,2]*cost.matrix[c(1),c(2)],confusionMatrix_test[2,1]*cost.matrix[c(2),c(1)]))
+}
+
+
+#Misclassification cost in test
+
+min_cost_index_test<-which(cost_test$Cutoff == 0.81)
+(best_acc_t<-paste("Cutoff = ",cost_test[min_cost_index_test,"Cutoff"],"and Cost = ",round(cost_test[min_cost_index_test,"Cost"])))
+
+#
+cost_test<-data.frame(Cutoff = rep(0,100),Cost = rep(0,100))
+predict_test<-predict(fit1,newdata = df_test,type="response")
+for( i in 1:100 ){
+  predtest<-ifelse(predict_test > i/100,"Against","For")
+  predtest<-factor(predtest,levels=c("For","Against"))
+  predtrain
+  confusionMatrix_test<-table(df_test$PREFERENCE,predtest)
+  cost_test[i,]<-c(i/100,sum(confusionMatrix_test[1,2]*cost.matrix[c(1),c(2)],confusionMatrix_test[2,1]*cost.matrix[c(2),c(1)]))
+}
+
+min_cost_index_test<-which.min(cost_test$Cost)
+(best_acc<-paste("Cutoff = ",cost_train[min_cost_index_test,"Cutoff"],"and Cost = ",round(cost_test[min_cost_index_test,"Cost"])))
+
+
+#3c
+for (row in 1:nrow(cost_train)) {
+  if(cost_train[row,] == 0.42){
+    return (row)
+  }
+}
+paste(index<-cost_train[row,])
+
+for (row in 1:nrow(cost_test)) {
+  if(cost_test[row,] == 0.45){
+    return (row)
+  }
+}
+paste(index<-cost_test[row,])
+
+
+#4
+actual<-df_train$PREFERENCE
+predicted.probability <- pred_t 
+
+df1 <- data.frame(predicted.probability,actual)
+df1S <- df1[order(-predicted.probability),]
+df1S$Gains <- cumsum(df1S$actual)
+plot(df1S$Gains,type="n",main="Training Data Gains Chart",xlab="Number of Cases",ylab="Cumulative Success")
+lines(df1S$Gains)
+abline(0,sum(df1S$actual)/nrow(df1S),lty = 2, col="red")
+
+actual<- df_test$PREFERENCE
+predicted.probability<- pred_1
+df1V <- data.frame(predicted.probability,actual)
+df1VS <- df1V[order(-predicted.probability),]
+df1VS$Gains <- cumsum(df1VS$actual)
+plot(df1VS$Gains,type="n",main="Validation Data Gains Chart",xlab="Number of Cases",ylab="Cumulative Success")
+lines(df1VS$Gains)
+abline(0,sum(df1VS$actual)/nrow(df1VS),lty = 2, col="red")
+
+#5
+library(data.table)
+decileLift<-function (df) {
+   df <- df[order(-df$predicted.probability),]
+   df$roworder <- 1:nrow(df)
+   baseline <- sum(df$actual) / 10
+   df$decile <- ceiling((df$roworder / nrow(df)) * 10)
+   dt <- data.table(df)
+   dt <- dt[, sum(actual), by = decile]
+   dt$baseline <- baseline
+   barplot(t(data.frame(dt$V1,dt$baseline)), main="Decile wise comparision of successes", xlab="Deciles", col=c("darkblue","red"), beside=TRUE, names=dt$decile)
+  barplot(t(data.frame(dt$V1)/data.frame(dt$baseline)), main="Decile wise comparision of successes", xlab="Deciles", col=c("darkblue"), beside=TRUE, names=dt$decile)
+}
+
+decileLift(df1)
+decileLift(df1V)
+
+```
