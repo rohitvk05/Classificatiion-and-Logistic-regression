@@ -1,0 +1,146 @@
+---
+title: "Assignment 02"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(magrittr)
+library(Metrics)
+library(plotly)
+library(corrplot)
+library(PerformanceAnalytics)
+library(Hmisc)
+library(knitr)
+library(mctest)
+setwd("C:/Users/Rohit/Documents/Spring Sem 2/Data mining/Assignment 2")
+dfk<-read.csv("Individual Assignment 2 VoterPref.csv")
+```
+```{r}
+#1
+library(plyr)
+##revalue(dfk$PREFERENCE,c("For"="Failure","Against"="Success"))
+dfk$PREFERENCE<-factor(dfk$PREFERENCE,levels=c("For","Against"))
+set.seed(71923)
+splitrule<-sample(nrow(dfk),0.7*nrow(dfk))
+df_train<-data.frame(dfk[splitrule,])
+df_test<-data.frame(dfk[-splitrule,])
+str(dfk)
+```
+```{r}
+str(df_train)
+str(df_test)
+```
+```{r}
+#2
+#a
+plot(factor(dfk$PREFERENCE), dfk$INCOME, xlab = "PREFERENCE",ylab="INCOME",main="INCOME vs PREFERENCE")
+```
+```{r}
+plot(factor(dfk$PREFERENCE), dfk$AGE, xlab = "PREFERENCE",ylab="AGE",main="AGE vs PREFERENCE")
+```
+```{r}
+#b
+summ1<-summary(df_train$PREFERENCE)
+prop.table(summ1)
+```
+```{r}
+#c
+num<-table(df_train$GENDER,df_train$PREFERENCE)
+num
+```
+```{r}
+#3
+df_train$PREFERENCE<-revalue(df_train$PREFERENCE,c("Against"="1","For"="0"))
+df_train$PREFERENCE<-as.numeric(as.character(df_train$PREFERENCE))
+#df_train$GENDER<-revalue(df_train$GENDER,c("M"="1","F"="0"))
+#df_train$GENDER<-as.numeric(as.character(df_train$GENDER))
+summary(df_train)
+```
+```{r}
+sapply(df_train, class)
+fit1<-lm(df_train$PREFERENCE~.,data=df_train)
+summary(fit1)
+
+#a
+#df_test$GENDER<-revalue(df_test$GENDER,c("M"="1","F"="0"))
+#df_test$GENDER<-as.numeric(as.character(df_test$GENDER))
+df_test$PREFERENCE<-revalue(df_test$PREFERENCE,c("Against"="1","For"="0"))
+df_test$PREFERENCE<-as.numeric(as.character(df_test$PREFERENCE))
+train.model<-lm(df_train$PREFERENCE~.,df_train)
+train.predict<-predict(train.model,df_train)
+summary(train.predict)
+test.predict<-predict(train.model,df_test)
+str(df_train)
+rmse(df_train$PREFERENCE, train.predict)
+mean(df_train$PREFERENCE - train.predict)
+mae(df_train$PREFERENCE, train.predict)
+
+##df_train1<-df_train[complete.cases(df_train),]
+##df_test1<-df_test[complete.cases(df_test),]
+
+##fit2<-lm(df_train1$PREFERENCE~.,data=df_train1)
+
+rmse(df_test$PREFERENCE,test.predict)
+mean(df_test$PREFERENCE - test.predict)
+mae(df_test$PREFERENCE,test.predict)
+```
+```{r}
+#c
+#dfc<-df_train[complete.cases(df_train),]
+fit2<-lm(df_train$PREFERENCE~.,data=df_train)
+pred0<-ifelse(fit2$fitted.values>0.5,1,0)
+prop.table(table(pred0))
+confusion0 <- table(df_train$PREFERENCE, pred0)
+rownames(confusion0)<-c("For","Against")
+colnames(confusion0)<-c("For","Against")
+prop.table(confusion0)
+```
+```{r}
+#d
+predicted<-predict(fit2,newdata = df_test)
+pred1<-ifelse(predicted>0.5,1,0)
+prop.table(table(pred1))
+confusion1<-table(df_test$PREFERENCE,pred1)
+rownames(confusion1)<-c("For","Against")
+colnames(confusion1)<-c("For","Against")
+confusion1
+prop.table(confusion1)
+```
+```{r}
+#4
+#a
+logfit<-glm(df_train$PREFERENCE~.,data=df_train,family="binomial")
+summary(logfit)
+```
+```{r}
+#d
+predictedTrain<-predict(logfit,newdata=df_train,type="response")
+#pred2<-ifelse(predictedTrain>0.5,1,0)
+pred2<-ifelse(logfit$fitted.values>0.5,1,0)
+confusion2<-table(df_train$PREFERENCE,pred2)
+rownames(confusion2)<-c("For","Against")
+colnames(confusion2)<-c("For","Against")
+confusion2
+prop.table(confusion2)
+```
+```{r}
+predictedTest<-predict(logfit,newdata = df_test,type="response")
+head(predictedTest)
+pred3<-ifelse(predictedTest>0.5,1,0)
+confusion3<-table(df_test$PREFERENCE,pred3)
+rownames(confusion3)<-c("For","Against")
+colnames(confusion3)<-c("For","Against")
+prop.table(confusion3)
+```
+```{r}
+#f
+dftester<-data.frame(AGE= 36,INCOME= 70,GENDER= "F")
+#dftester$GENDER<-revalue(dftester$GENDER,c("M"="1"))
+#dftester$GENDER<-as.numeric(as.character(dftester$GENDER))
+dftester$prob<-predict(logfit,newdata = dftester,type="response")
+dftester[,c(4)]
+```
